@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GPS CALL 모니터링</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='11' fill='%230071e3'/%3E%3Ccircle cx='12' cy='12' r='4' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/ko.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+  <meta name="robots" content="noindex, nofollow">
+</head>
+<body class="locked">
+  <!-- 메인(잠금) 화면 -->
+  <div id="gate" class="gate" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+    <form class="gate-card" id="gateForm" novalidate>
+      <div class="brand-mark gate-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="30" height="30"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
+      </div>
+      <h1 id="gateTitle">GPS CALL 모니터링</h1>
+      <p class="gate-hint">비밀번호를 입력해 주세요.</p>
+      <label class="gate-field"><span>비밀번호</span><input class="input" id="gatePw" type="password" autocomplete="current-password"></label>
+      <p class="gate-error" id="gateError" role="alert"></p>
+      <button class="btn btn-primary btn-lg gate-submit" id="gateSubmit" type="submit">입장</button>
+    </form>
+  </div>
+
+  <!-- 상단 고정: 제목 · 탭 -->
+  <header class="topbar">
+    <div class="topbar-row">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
+        </div>
+        <div class="brand-text">
+          <h1>GPS CALL 모니터링 <span class="ver" id="appVersion"></span></h1>
+          <p id="dataMeta">분석할 파일을 추가하세요</p>
+        </div>
+      </div>
+      <nav class="tabs needs-data" id="tabs" role="tablist" aria-label="화면 선택" hidden>
+        <button class="tab on" data-tab="dashboard" role="tab" aria-selected="true">대시보드</button>
+        <button class="tab" data-tab="flags" role="tab" aria-selected="false">특이건 <i class="tab-badge warn" id="badgeFlags"></i></button>
+        <button class="tab" data-tab="places" role="tab" aria-selected="false">위치 관리 <i class="tab-badge ok" id="badgePlaces"></i></button>
+        <button class="tab" data-tab="history" role="tab" aria-selected="false">수정 이력 <i class="tab-badge gray" id="badgeHistory"></i></button>
+        <button class="tab" data-tab="settings" role="tab" aria-selected="false">설정</button>
+      </nav>
+      <div class="top-actions">
+        <span class="pill pill-progress" id="geoProgress" hidden></span>
+        <button class="btn btn-primary" id="openUpload">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M11 16V7.8l-3.3 3.3-1.4-1.4L12 4l5.7 5.7-1.4 1.4L13 7.8V16zm-6 4v-6h2v4h10v-4h2v6z"/></svg>
+          파일 추가
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 업로드 -->
+    <section id="view-upload" class="view" hidden>
+      <div class="upload">
+        <label class="dropzone" for="fileInput">
+          <span class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="38" height="38"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm-1 7V3.5L18.5 9zM8.3 18l2.2-3.3L8.4 11.5h1.8l1.3 2.1 1.3-2.1h1.8l-2.1 3.2 2.2 3.3h-1.8l-1.4-2.2-1.4 2.2z"/></svg>
+          </span>
+          <b>엑셀 파일을 끌어다 놓거나 클릭해서 선택</b>
+          <span class="muted">여러 파일을 함께 올리면 사원코드 기준으로 취합합니다</span>
+          <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls" multiple hidden>
+        </label>
+        <ul class="staged" id="stagedList" hidden></ul>
+        <label class="check" id="appendWrap" hidden><input type="checkbox" id="appendMode"> 기존 분석 데이터에 추가</label>
+        <div class="upload-actions">
+          <button class="btn" id="cancelUpload" hidden>취소</button>
+          <button class="btn btn-primary btn-lg" id="startAnalysis" disabled>분석 시작</button>
+        </div>
+        <p class="muted small center">파일은 이 PC의 브라우저에서만 처리되며 외부로 업로드되지 않습니다.</p>
+      </div>
+    </section>
+
+    <!-- 대시보드 -->
+    <section id="view-dashboard" class="view" hidden>
+      <div class="emp-sticky"><div class="emp-bar" id="empHead"></div></div>
+
+      <div class="card filter-card">
+        <div class="filters">
+          <label class="fld"><span>구분</span><select id="fGubun" class="input"></select></label>
+          <label class="fld"><span>팀명</span><select id="fTeam" class="input"></select></label>
+          <label class="fld"><span>사원명</span><select id="fEmp" class="input"></select></label>
+          <label class="fld"><span>사번</span><select id="fCode" class="input"></select></label>
+          <div class="fld fld-date"><span>점검 기간</span><div id="dateHost" class="date-host"></div></div>
+          <button class="btn btn-ghost fld-reset" id="fReset">초기화</button>
+        </div>
+        <div id="datePresets" class="chips presets"></div>
+      </div>
+
+      <h2 class="section-title">대시보드</h2>
+      <div id="kpis" class="kpi-grid"></div>
+      <div class="grid-2">
+        <div class="card" id="regionCard"></div>
+        <div class="card" id="chartCard"></div>
+      </div>
+      <div class="card" id="summaryCard"></div>
+
+      <h2 class="section-title">지도</h2>
+      <div class="card map-card" id="mapCard">
+        <div class="map-toolbar">
+          <label class="switch" id="routeSwitch" data-tip=""><input type="checkbox" id="routeToggle" checked><span class="track"></span>하루 동선</label>
+          <div class="day-step" id="dayStep" hidden>
+            <button class="btn btn-sm" id="dayPrev" aria-label="이전 날">‹</button>
+            <select id="daySelect" class="input input-sm" aria-label="동선 일자"></select>
+            <button class="btn btn-sm" id="dayNext" aria-label="다음 날">›</button>
+          </div>
+          <label class="switch" id="homeSwitch" hidden><input type="checkbox" id="homeToggle" checked><span class="track"></span>집 표시</label>
+          <button class="btn btn-sm" id="mapFit">전체 보기</button>
+          <span class="map-status small" id="mapStatus"></span>
+        </div>
+        <div class="map-legend small">
+          <span><i class="lg-pin pin-call"></i>콜</span>
+          <span><i class="lg-pin pin-anom"></i>이상 자릿수 포함</span>
+          <span><i class="lg-pin pin-pay"></i>법카</span>
+          <span><i class="lg-line"></i>동선</span>
+          <span><i class="lg-line bad"></i>이동불가</span>
+        </div>
+        <div class="map-wrap">
+          <div id="map" class="map-el"></div>
+          <div id="mapEmpty" class="map-empty" hidden></div>
+        </div>
+        <div class="route-info" id="routeInfo"></div>
+      </div>
+
+      <h2 class="section-title">전체 백데이터 <span class="muted" id="backCount"></span></h2>
+      <div class="card">
+        <div class="table-toolbar">
+          <div class="chips" id="quickFilters"></div>
+          <div class="grow"></div>
+          <input class="input input-sm" id="backSearch" placeholder="거래처·사원·지역 검색" aria-label="백데이터 검색">
+          <button class="btn btn-sm" id="backExport">엑셀 내보내기</button>
+        </div>
+        <div id="backTable"></div>
+      </div>
+    </section>
+
+    <!-- 특이건 -->
+    <section id="view-flags" class="view" hidden>
+      <div class="view-head"><h2 class="section-title">특이건 목록</h2><div class="ctx" data-ctx></div></div>
+      <div class="card map-card" id="flagMapCard">
+        <div class="map-toolbar">
+          <span class="map-title" id="flagMapTitle">특이건 위치</span>
+          <button class="btn btn-sm" id="flagMapReset" hidden>특이건 전체 보기</button>
+          <button class="btn btn-sm" id="flagMapFit">전체 보기</button>
+          <span class="map-status small" id="flagMapStatus"></span>
+        </div>
+        <div class="map-wrap map-wrap-sm">
+          <div id="flagMap" class="map-el"></div>
+          <div id="flagMapEmpty" class="map-empty" hidden></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-toolbar">
+          <div class="pills" id="flagSummary"></div>
+          <div class="grow"></div>
+          <label class="switch" data-tip="특이건이 있는 날의&#10;전체 기록을 함께 표시"><input type="checkbox" id="flagDayAll" checked><span class="track"></span>해당 일자 전체</label>
+          <select class="input input-sm" id="flagGroupBy" aria-label="보기 범위">
+            <option value="all">전체</option>
+            <option value="fl">첫·막콜 특이건</option>
+            <option value="imp">이동불가</option>
+            <option value="fav">★ 즐겨찾기</option>
+          </select>
+          <button class="btn btn-sm btn-primary" id="flagExport">보고서용 엑셀</button>
+        </div>
+        <div id="flagTable"></div>
+      </div>
+    </section>
+
+    <!-- 위치 관리 -->
+    <section id="view-places" class="view" hidden>
+      <div class="view-head"><h2 class="section-title">거래처 위치 관리</h2><div class="ctx" data-ctx></div></div>
+      <div class="card">
+        <div class="table-toolbar">
+          <div class="chips" id="placeChips"></div>
+          <div class="grow"></div>
+          <input class="input input-sm" id="placeSearch" placeholder="거래처명 검색" aria-label="거래처 검색">
+          <button class="btn btn-sm" id="placeRegeocode" data-tip="확인필요·검색실패 거래처 재검색&#10;(수동 지정은 유지)">재검색</button>
+        </div>
+        <div class="bulk-bar" id="bulkBar">
+          <label class="check"><input type="checkbox" id="placeSelAll"> 목록 전체 선택</label>
+          <span class="muted" id="placeSelCount">0곳 선택</span>
+          <div class="grow"></div>
+          <button class="btn btn-sm btn-primary" id="placeBulkNearest" disabled data-tip="선택한 거래처마다 검색 후보 중&#10;콜 X좌표와 가장 가까운 곳으로 지정">콜 X좌표 최근접으로 일괄 지정</button>
+          <button class="btn btn-sm" id="placeBulkExclude" disabled data-tip="선택한 거래처만 위치제외로 지정&#10;지도·이동불가 판정에서 빠지고 수정 이력에 기록">위치제외로 지정</button>
+          <button class="btn btn-sm" id="placeBulkInclude" disabled data-tip="직접 지정한 위치제외를 해제&#10;수정 이력에 기록">위치제외 해제</button>
+        </div>
+        <div id="placeTable"></div>
+      </div>
+    </section>
+
+    <!-- 수정 이력 -->
+    <section id="view-history" class="view" hidden>
+      <div class="view-head"><h2 class="section-title">수정 이력</h2></div>
+      <div class="card">
+        <div class="table-toolbar">
+          <select class="input input-sm" id="histType" aria-label="유형"></select>
+          <div class="grow"></div>
+          <button class="btn btn-sm" id="histExport">엑셀 내보내기</button>
+        </div>
+        <div class="bulk-bar">
+          <label class="check"><input type="checkbox" id="histSelAll"> 목록 전체 선택</label>
+          <span class="muted" id="histSelCount">0건 선택</span>
+          <div class="grow"></div>
+          <button class="btn btn-sm btn-danger" id="histDelete" disabled>삭제</button>
+        </div>
+        <div id="histTable"></div>
+      </div>
+    </section>
+
+    <!-- 설정 -->
+    <section id="view-settings" class="view" hidden></section>
+  </main>
+
+  <!-- 오른쪽 슬라이드 패널 -->
+  <aside id="panel" class="panel" aria-hidden="true" aria-label="방문 내역"></aside>
+
+  <!-- 분석 진행 화면 -->
+  <div id="loader" class="loader" hidden role="status" aria-live="polite">
+    <div class="loader-in">
+      <div class="ring">
+        <svg viewBox="0 0 120 120" width="132" height="132" aria-hidden="true">
+          <circle cx="60" cy="60" r="52" class="ring-bg"/>
+          <circle cx="60" cy="60" r="52" class="ring-fg" id="loaderRing"/>
+        </svg>
+        <span id="loaderPct">0%</span>
+      </div>
+      <h2>GPS CALL 모니터링을 위한 화면을 구성 중이에요</h2>
+      <p id="loaderStep"></p>
+    </div>
+  </div>
+
+  <div class="drop-hint" aria-hidden="true"><div>여기에 엑셀 파일을 놓으세요</div></div>
+  <div id="modalRoot"></div>
+  <div id="toastRoot" class="toast-root" aria-live="polite"></div>
+  <div id="tip" class="tip" role="tooltip"></div>
+</body>
+</html>
